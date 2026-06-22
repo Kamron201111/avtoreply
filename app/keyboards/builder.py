@@ -23,7 +23,9 @@ def btn(text: str, *, cb: str = "", url: str = "", web_app: str = "",
     if switch_inline != "":
         b["switch_inline_query_current_chat"] = switch_inline
     if icon:
-        b["icon_custom_emoji_id"] = ICON.get(icon, icon)
+        eid = ICON.get(icon, icon)
+        if str(eid).isdigit():
+            b["icon_custom_emoji_id"] = eid
     if style:
         b["style"] = style
     return b
@@ -52,7 +54,9 @@ def rbtn(text: str, *, icon: str = "", style: str = "") -> dict:
     """Reply keyboard tugmasi (matn yuboradi)."""
     b: dict = {"text": text}
     if icon:
-        b["icon_custom_emoji_id"] = ICON.get(icon, icon)
+        eid = ICON.get(icon, icon)
+        if str(eid).isdigit():
+            b["icon_custom_emoji_id"] = eid
     if style:
         b["style"] = style
     return b

@@ -28,8 +28,6 @@ def main_menu(lang: str = "uz", is_admin: bool = False) -> dict:
          rbtn(t("btn_pro", lang), icon="CROWN", style="danger")],
         [rbtn(t("btn_cabinet", lang), icon="USER", style="primary"),
          rbtn(t("btn_settings", lang), icon="GEAR", style="primary")],
-        [rbtn(t("btn_calendar", lang), icon="CALENDAR", style="primary"),
-         rbtn(t("btn_tools", lang), icon="TOOLS")],
         [rbtn(t("btn_stats", lang), icon="STATS", style="success"),
          rbtn(t("btn_help", lang), icon="INFO", style="success")],
         [rbtn(t("btn_guide", lang), icon="BOOK", style="danger"),

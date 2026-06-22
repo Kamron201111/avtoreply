@@ -147,6 +147,68 @@ async def _create_tables() -> None:
             );
         """)
 
+        # ─── MIGRATION: eski jadvallarga yetishmayotgan ustunlarni qo'shish ───
+        await _migrate(con)
+
+
+async def _migrate(con) -> None:
+    """Eski DB'ga yangi ustunlarni xavfsiz qo'shadi (ADD COLUMN IF NOT EXISTS)."""
+    migrations = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS lang TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE autosend ADD COLUMN IF NOT EXISTS cycles INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE autosend ADD COLUMN IF NOT EXISTS mention_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE autosend ADD COLUMN IF NOT EXISTS auto_delete_sec INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_username TEXT NOT NULL DEFAULT ''",
+    ]
+    for sql in migrations:
+        try:
+            await con.execute(sql)
+        except Exception as e:
+            print(f"[migration] {sql[:50]}... xato: {e}")
+
+    # account_tg_id ni GLOBAL UNIQUE qilish (agar eski (owner_id, account_tg_id) bo'lsa)
+    try:
+        # Eski composite unique constraintni o'chiramiz (agar bor bo'lsa)
+        await con.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname='accounts_owner_id_account_tg_id_key') THEN
+                    ALTER TABLE accounts DROP CONSTRAINT accounts_owner_id_account_tg_id_key;
+                END IF;
+            END $$;
+        """)
+    except Exception as e:
+        print(f"[migration] drop old constraint: {e}")
+    # account_tg_id ga UNIQUE qo'shish (agar yo'q bo'lsa)
+    try:
+        await con.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='accounts_account_tg_id_key') THEN
+                    ALTER TABLE accounts ADD CONSTRAINT accounts_account_tg_id_key UNIQUE (account_tg_id);
+                END IF;
+            END $$;
+        """)
+    except Exception as e:
+        print(f"[migration] add unique: {e}")
+
+    # dm_reply va group_reply jadvallari mavjud akkauntlar uchun yozuv yaratish
+    try:
+        await con.execute("""
+            INSERT INTO dm_reply (account_id)
+            SELECT id FROM accounts WHERE id NOT IN (SELECT account_id FROM dm_reply)
+        """)
+        await con.execute("""
+            INSERT INTO group_reply (account_id)
+            SELECT id FROM accounts WHERE id NOT IN (SELECT account_id FROM group_reply)
+        """)
+        await con.execute("""
+            INSERT INTO autosend (account_id)
+            SELECT id FROM accounts WHERE id NOT IN (SELECT account_id FROM autosend)
+        """)
+    except Exception as e:
+        print(f"[migration] backfill reply rows: {e}")
+
 
 # ═══ USERS ══════════════════════════════════════════════════════════
 async def get_or_create_user(tg_id, username, full_name):
@@ -292,7 +354,11 @@ async def enable_all_groups(account_id, enabled=True):
 # ═══ AUTOSEND ═══════════════════════════════════════════════════════
 async def get_autosend(account_id):
     async with pool().acquire() as con:
-        return await con.fetchrow("SELECT * FROM autosend WHERE account_id=$1", account_id)
+        row = await con.fetchrow("SELECT * FROM autosend WHERE account_id=$1", account_id)
+        if not row:
+            await con.execute("INSERT INTO autosend (account_id) VALUES ($1) ON CONFLICT DO NOTHING", account_id)
+            row = await con.fetchrow("SELECT * FROM autosend WHERE account_id=$1", account_id)
+        return row
 
 
 async def update_autosend(account_id, **fields):
@@ -319,7 +385,11 @@ async def inc_cycle(account_id):
 # ═══ DM REPLY ═══════════════════════════════════════════════════════
 async def get_dm_reply(account_id):
     async with pool().acquire() as con:
-        return await con.fetchrow("SELECT * FROM dm_reply WHERE account_id=$1", account_id)
+        row = await con.fetchrow("SELECT * FROM dm_reply WHERE account_id=$1", account_id)
+        if not row:
+            await con.execute("INSERT INTO dm_reply (account_id) VALUES ($1) ON CONFLICT DO NOTHING", account_id)
+            row = await con.fetchrow("SELECT * FROM dm_reply WHERE account_id=$1", account_id)
+        return row
 
 
 async def update_dm_reply(account_id, **fields):
@@ -334,7 +404,11 @@ async def update_dm_reply(account_id, **fields):
 # ═══ GROUP REPLY ════════════════════════════════════════════════════
 async def get_group_reply(account_id):
     async with pool().acquire() as con:
-        return await con.fetchrow("SELECT * FROM group_reply WHERE account_id=$1", account_id)
+        row = await con.fetchrow("SELECT * FROM group_reply WHERE account_id=$1", account_id)
+        if not row:
+            await con.execute("INSERT INTO group_reply (account_id) VALUES ($1) ON CONFLICT DO NOTHING", account_id)
+            row = await con.fetchrow("SELECT * FROM group_reply WHERE account_id=$1", account_id)
+        return row
 
 
 async def update_group_reply(account_id, **fields):
