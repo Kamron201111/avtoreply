@@ -1,10 +1,26 @@
 """
-Rangli + premium emoji inline tugmalar (aiogram 3.x).
+Rangli inline tugmalar (aiogram 3.x).
 
-Elder Stars'dagi `btn()` funksiyasining Python ekvivalenti.
-aiogram 3.29+ `style` va `icon_custom_emoji_id` ni qo'llab-quvvatlaydi.
+emoji  — emoji nomi (em.E_*) yoki oddiy emoji; tugma matni OLDIGA qo'shiladi
+style  — tugma rangi (Bot API 9.4): "primary", "success", "danger"
+
+ESLATMA: Inline tugmalarda premium emoji (icon_custom_emoji_id) ishlatilmaydi,
+chunki u DOCUMENT_INVALID berishi mumkin. Oddiy emoji matn oldiga qo'shiladi.
 """
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from app import emoji as em
+
+
+def _resolve_emoji(emoji: str) -> str:
+    """Emoji nomini (masalan 'rocket') oddiy emojiga aylantiradi."""
+    if not emoji:
+        return ""
+    # Agar bu nom bo'lsa (PLAIN ichida) — oddiy emoji qaytar
+    if emoji in em.PLAIN:
+        return em.PLAIN[emoji]
+    # Aks holda o'zi emoji (masalan to'g'ridan-to'g'ri "🚀")
+    return emoji
 
 
 def btn(
@@ -14,25 +30,17 @@ def btn(
     emoji: str = "",
     style: str = "",
 ) -> InlineKeyboardButton:
-    """
-    Bitta inline tugma yaratadi.
+    """Bitta inline tugma yaratadi."""
+    icon = _resolve_emoji(emoji)
+    label = f"{icon} {text}".strip() if icon else text
 
-    Args:
-        text:          tugma matni
-        callback_data: bosilganda yuboriladigan ma'lumot
-        url:           havola (callback_data o'rniga)
-        emoji:         icon_custom_emoji_id — premium emoji ID
-        style:         "primary" (ko'k) | "success" (yashil) | "danger" (qizil)
-    """
-    kwargs: dict = {"text": text}
+    kwargs: dict = {"text": label}
     if callback_data:
         kwargs["callback_data"] = callback_data
     if url:
         kwargs["url"] = url
-    if emoji:
-        kwargs["icon_custom_emoji_id"] = emoji   # Bot API 9.4
     if style:
-        kwargs["style"] = style                  # Bot API 9.4
+        kwargs["style"] = style   # Bot API 9.4 — rang (xavfsiz)
     return InlineKeyboardButton(**kwargs)
 
 
