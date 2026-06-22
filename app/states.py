@@ -1,39 +1,55 @@
 """
-FSM holatlari — ulash, xabar sozlash, autoreply va admin uchun.
+FSM holatlari.
 """
 from aiogram.fsm.state import State, StatesGroup
 
 
 class LinkAccount(StatesGroup):
-    """Akkaunt ulash jarayoni."""
-    choosing_method = State()    # QR yoki SMS tanlash
-    waiting_phone = State()      # SMS: telefon raqami
-    waiting_code = State()       # SMS: kod
-    waiting_password = State()   # 2FA parol (QR/SMS umumiy)
-    qr_waiting = State()         # QR skaner kutilmoqda
+    choosing_method = State()
+    waiting_phone = State()
+    waiting_code = State()
+    waiting_password = State()
+    qr_waiting = State()
 
 
 class MessageSetup(StatesGroup):
-    """Avto-xabar matnini sozlash."""
     waiting_text = State()
     waiting_interval = State()
 
 
 class AutoReplySetup(StatesGroup):
-    """Autoreply matnini sozlash."""
     waiting_text = State()
 
 
+class DMReplySetup(StatesGroup):
+    """DM javob (onlayn bo'lmaganda)."""
+    waiting_text = State()
+
+
+class GroupReplySetup(StatesGroup):
+    """Autoreply (guruhda reply qilinsa)."""
+    waiting_text = State()
+    waiting_groups = State()
+
+
 class AdminStates(StatesGroup):
-    """Admin panel holatlari."""
     waiting_broadcast = State()
     waiting_user_id = State()
     waiting_premium_id = State()
     waiting_prices = State()
     waiting_card = State()
+    waiting_guide = State()
+    waiting_statsdesc = State()
+    waiting_help = State()
+    waiting_channel = State()
+    waiting_ticket_reply = State()
 
 
 class ProGift(StatesGroup):
-    """Pro sovg'a qilish holatlari."""
-    waiting_target = State()     # kimga sovg'a (username/ID)
-    waiting_payment = State()    # to'lov tasdiqlash
+    waiting_target = State()
+    waiting_payment = State()
+
+
+class Support(StatesGroup):
+    """Murojat (foydalanuvchi -> admin)."""
+    waiting_message = State()

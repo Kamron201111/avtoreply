@@ -1,6 +1,5 @@
 """
-Asosiy menyu bo'limlari (raw API — premium emoji + rangli inline tugmalar).
-Har bir bo'lim skrinshотlardagi dizaynга mos.
+Asosiy menyu bo'limlari — 3 tilli, raw API, premium emoji + rang.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -9,404 +8,369 @@ from aiogram.fsm.context import FSMContext
 from app.database import db
 from app.keyboards import reply, menus
 from app.raw_api import send_message, edit_message, answer_callback, delete_message
+from app.i18n import t, TEXTS
+from app.lang_util import get_lang
 from app import emoji as em
 from app.config import config
 
 router = Router(name="menu")
 
 
-# ═══════════════════════════════════════════════════════════════════
-# AKKAUNT PANEL MATNI (Image 1) — yordamchi
-# ═══════════════════════════════════════════════════════════════════
+# ─── Tugma matnini har 3 tilda solishtirish ────────────────────────
+def _is_btn(text: str, key: str) -> bool:
+    """Berilgan matn shu key ning biror tildagi varianti bilan boshlanadimi."""
+    if not text:
+        return False
+    variants = TEXTS.get(key, {})
+    return any(text == v for v in variants.values())
 
-async def account_panel_text(account) -> str:
+
+async def account_panel_text(account, lang="uz") -> str:
     s = await db.get_autosend(account["id"])
     gc = await db.count_groups(account["id"])
     name = account["account_name"] or account["phone"] or f"#{account['id']}"
-    status = "🟢 Ishlamoqda" if s["is_running"] else f"{em.emoji('RED')} O'chiq"
-    msg_type = {"text": "Matn", "photo": "Rasm+matn", "button": "Tugmali"}.get(
-        s["message_type"], "Matn")
-    auto_del = "♾ Cheksiz" if s["auto_delete_sec"] == 0 else f"{s['auto_delete_sec']}s"
-    mention = "Yoqilgan" if s["mention_enabled"] else "O'chiq"
-
+    status = t("st_running", lang) if s["is_running"] else t("st_stopped", lang)
+    mtype_key = {"text": "mtype_text", "photo": "mtype_photo", "button": "mtype_button"}.get(
+        s["message_type"], "mtype_text")
+    auto_del = t("infinite", lang) if s["auto_delete_sec"] == 0 else f"{s['auto_delete_sec']}s"
+    mention = t("on", lang) if s["mention_enabled"] else t("off", lang)
     return (
-        f"{em.emoji('USER')} <b>Boshqaruv panel</b>\n"
+        f"{em.emoji('USER')} <b>{t('panel_title', lang)}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"{em.emoji('USERS')} Profil: <b>{name}</b>\n"
-        f"{em.emoji('RED')} Holat: <b>{status}</b>\n"
-        f"{em.emoji('USER')} Xabar turi: <b>{msg_type}</b>\n"
-        f"{em.emoji('CHAT')} Guruhlar: <b>{gc}</b>\n"
-        f"{em.emoji('CLOCK')} Interval: <b>{s['interval_min']} daqiqa</b>\n"
-        f"{em.emoji('TIMER')} Avto-o'chish: <b>{auto_del}</b>\n"
-        f"{em.emoji('MENTION')} Mention: <b>{mention}</b>\n"
+        f"{em.emoji('USERS')} {t('p_profile', lang)}: <b>{name}</b>\n"
+        f"{em.emoji('RED')} {t('p_status', lang)}: <b>{status}</b>\n"
+        f"{em.emoji('USER')} {t('p_msgtype', lang)}: <b>{t(mtype_key, lang)}</b>\n"
+        f"{em.emoji('GROUP')} {t('p_groups', lang)}: <b>{gc}</b>\n"
+        f"{em.emoji('CLOCK')} {t('p_interval', lang)}: <b>{s['interval_min']} {('daqiqa' if lang=='uz' else 'мин' if lang=='ru' else 'min')}</b>\n"
+        f"{em.emoji('TIMER')} {t('p_autodel', lang)}: <b>{auto_del}</b>\n"
+        f"{em.emoji('MENTION')} {t('p_mention', lang)}: <b>{mention}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
 
 
-async def _first_account(user_id: int):
-    """Foydalanuvchining birinchi akkauntini qaytaradi (yoki None)."""
+async def _first_account(user_id):
     accounts = await db.get_accounts(user_id)
     return accounts[0] if accounts else None
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 1. AUTOHABAR YUBORISH (Image 1)
+# 1. AUTOHABAR YUBORISH
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Autohabar yuborish"))
+@router.message(lambda m: _is_btn(m.text, "btn_autosend"))
 async def m_autosend(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     account = await _first_account(message.from_user.id)
     if not account:
-        await send_message(
-            message.from_user.id,
-            f"{em.emoji('WARN')} <b>Avval profil (akkaunt) qo'shing!</b>\n\n"
-            f"«👥 Profillar» bo'limiga o'tib, akkaunt ulang.",
-        )
+        await send_message(message.from_user.id, t("no_account", lang))
         return
     s = await db.get_autosend(account["id"])
-    await send_message(
-        message.from_user.id,
-        await account_panel_text(account),
-        reply_markup=menus.account_panel(account["id"], s["is_running"], s["mention_enabled"]),
-    )
+    await send_message(message.from_user.id, await account_panel_text(account, lang),
+                       reply_markup=menus.account_panel(account["id"], s["is_running"], s["mention_enabled"], lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 2. HABAR MATNI (Image 2)
+# 2. HABAR MATNI
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Habar matni"))
+@router.message(lambda m: _is_btn(m.text, "btn_message"))
 async def m_message(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     account = await _first_account(message.from_user.id)
     if not account:
-        await send_message(
-            message.from_user.id,
-            f"{em.emoji('WARN')} Avval «👥 Profillar» dan akkaunt qo'shing.",
-        )
+        await send_message(message.from_user.id, t("no_account", lang))
         return
     s = await db.get_autosend(account["id"])
-    cur_type = {"text": "Matn", "photo": "Rasm+matn", "button": "Tugmali"}.get(
-        s["message_type"], "Matn")
-    has_msg = f"{em.emoji('OK')} Sozlangan" if s["message_text"] else f"{em.emoji('RED')} Sozlanmagan"
+    mtype_key = {"text": "mtype_text", "photo": "mtype_photo", "button": "mtype_button"}.get(
+        s["message_type"], "mtype_text")
+    has_msg = t("msg_set", lang) if s["message_text"] else t("msg_notset", lang)
     text = (
-        f"{em.emoji('USER')} <b>Habarni sozlash</b>\n\n"
-        f"📄 Joriy tur: <b>{cur_type}</b>\n"
-        f"📝 Xabar: <b>{has_msg}</b>\n\n"
-        f"Forward faqat Pro tarifda {em.emoji('CARD')}\n\n"
-        f"👇 <b>Xabar turini tanlang:</b>"
+        f"{em.emoji('USER')} <b>{t('msg_title', lang)}</b>\n\n"
+        f"📄 {t('msg_curtype', lang)}: <b>{t(mtype_key, lang)}</b>\n"
+        f"📝 {t('msg_msg', lang)}: <b>{has_msg}</b>\n\n"
+        f"{t('fwd_pro', lang)}\n\n"
+        f"{t('choose_msgtype', lang)}"
     )
     await send_message(message.from_user.id, text,
-                       reply_markup=menus.message_type_kb(account["id"]))
+                       reply_markup=menus.message_type_kb(account["id"], lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 3. INTERVAL (Image 3)
+# 3. INTERVAL
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Interval"))
+@router.message(lambda m: _is_btn(m.text, "btn_interval"))
 async def m_interval(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     account = await _first_account(message.from_user.id)
     if not account:
-        await send_message(message.from_user.id,
-                           f"{em.emoji('WARN')} Avval «👥 Profillar» dan akkaunt qo'shing.")
+        await send_message(message.from_user.id, t("no_account", lang))
         return
     s = await db.get_autosend(account["id"])
+    unit = "daqiqa" if lang == "uz" else "мин" if lang == "ru" else "min"
     text = (
-        f"{em.emoji('TIMER')} <b>Habar oralig'i</b>\n\n"
-        f"Joriy interval: <b>{s['interval_min']} daqiqa</b>\n\n"
-        f"Kerakli vaqtni tanlang:"
+        f"{em.emoji('TIMER')} <b>{t('int_title', lang)}</b>\n\n"
+        f"{t('int_cur', lang)}: <b>{s['interval_min']} {unit}</b>\n\n"
+        f"{t('int_choose', lang)}"
     )
     await send_message(message.from_user.id, text,
-                       reply_markup=menus.interval_kb(account["id"], s["interval_min"]))
+                       reply_markup=menus.interval_kb(account["id"], s["interval_min"], lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 4. GURUHLARNI SOZLASH (Image 4)
+# 4. GURUHLARNI SOZLASH
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Guruhlarni sozlash"))
+@router.message(lambda m: _is_btn(m.text, "btn_groups"))
 async def m_groups(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     account = await _first_account(message.from_user.id)
     if not account:
-        await send_message(message.from_user.id,
-                           f"{em.emoji('WARN')} Avval «👥 Profillar» dan akkaunt qo'shing.")
+        await send_message(message.from_user.id, t("no_account", lang))
         return
     gc = await db.count_groups(account["id"])
     enabled = len(await db.get_enabled_groups(account["id"]))
-    choice = "Hamma guruhlarga" if enabled == gc and gc > 0 else f"{enabled} ta tanlangan"
+    choice = t("grp_all_lbl", lang) if (enabled == gc and gc > 0) else t("grp_count", lang, n=enabled)
     text = (
-        f"{em.emoji('TARGET')} <b>Guruhlarni sozlash</b>\n\n"
-        f"Qaysi guruhlarga xabar yuboramiz?\n"
-        f"{em.emoji('CHECK')} Tanlangan\n"
-        f"➕ Tanlanmagan\n\n"
-        f"{em.emoji('PIN')} Hozirgi tanlov: <b>{choice}</b>\n\n"
-        f"🗒 <b>Guruhlarni tanlang</b>"
+        f"{t('grp_title', lang)}\n\n"
+        f"{t('grp_q', lang)}\n"
+        f"✔️ {t('grp_selected', lang)}\n➕ {t('grp_notselected', lang)}\n\n"
+        f"{em.emoji('PIN')} {t('grp_cur', lang)}: <b>{choice}</b>\n\n"
+        f"{t('grp_choose', lang)}"
     )
     await send_message(message.from_user.id, text,
-                       reply_markup=menus.groups_choice_kb(account["id"]))
+                       reply_markup=menus.groups_choice_kb(account["id"], lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 5. PROFILLAR (akkauntlar)
+# 5. PROFILLAR
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Profillar"))
+@router.message(lambda m: _is_btn(m.text, "btn_profiles"))
 async def m_profiles(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     accounts = await db.get_accounts(message.from_user.id)
-    text = (
-        f"{em.emoji('USERS')} <b>Profillar</b>\n\n"
-        + (f"Ulangan akkauntlar: <b>{len(accounts)}</b> ta\n\nBoshqarish uchun tanlang:"
-           if accounts else
-           "Hali akkaunt ulanmagan.\n\n➕ Akkaunt qo'shish tugmasini bosing.")
-    )
-    await send_message(message.from_user.id, text,
-                       reply_markup=menus.accounts_menu(accounts))
+    body = (t("prof_count", lang, n=len(accounts)) + "\n\n" + t("prof_manage", lang)) if accounts else t("prof_none", lang)
+    await send_message(message.from_user.id, f"{t('prof_title', lang)}\n\n{body}",
+                       reply_markup=menus.accounts_menu(accounts, lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 6. PRO TARIF (karta + stars + sovg'a)
+# 6. PRO TARIF
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Pro tarif"))
+@router.message(lambda m: _is_btn(m.text, "btn_pro"))
 async def m_pro(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     user = await db.get_user(message.from_user.id)
     is_prem = user["is_premium"] if user else False
-    price_card = await db.get_setting("pro_price_card", "50000")
-    price_stars = await db.get_setting("pro_price_stars", "500")
-    status = f"{em.emoji('CROWN')} <b>Premium faol</b>" if is_prem else "Oddiy (bepul)"
+    pc = await db.get_setting("pro_price_card", "50000")
+    ps = await db.get_setting("pro_price_stars", "500")
+    status = t("pro_active", lang) if is_prem else t("pro_free", lang)
+    som = "so'm" if lang == "uz" else "сум" if lang == "ru" else "UZS"
     text = (
-        f"{em.emoji('CROWN')} <b>Pro tarif</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"Tarifingiz: {status}\n\n"
-        f"<b>Pro imkoniyatlari:</b>\n"
-        f"{em.emoji('OK')} Cheksiz guruhlar\n"
-        f"{em.emoji('OK')} Minimal interval (1 daqiqa)\n"
-        f"{em.emoji('OK')} Forward va tugmali xabarlar\n"
-        f"{em.emoji('OK')} Bir nechta profil\n\n"
-        f"💳 Karta: <b>{int(price_card):,} so'm</b>\n"
-        f"⭐️ Stars: <b>{price_stars} ⭐</b>\n\n"
-        f"{em.emoji('GIFT')} Boshqaga ham sovg'a qila olasiz!"
+        f"{t('pro_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n"
+        f"{t('pro_your', lang)}: {status}\n\n"
+        f"{t('pro_feats', lang)}\n\n"
+        f"💳 {int(pc):,} {som}\n⭐️ {ps} ⭐\n\n"
+        f"{t('pro_gift_hint', lang)}"
     )
-    await send_message(message.from_user.id, text,
-                       reply_markup=menus.pro_kb(is_prem))
+    await send_message(message.from_user.id, text, reply_markup=menus.pro_kb(is_prem, lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 7. KABINET (Image 5)
+# 7. KABINET
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Kabinet"))
+@router.message(lambda m: _is_btn(m.text, "btn_cabinet"))
 async def m_cabinet(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     user = await db.get_user(message.from_user.id)
     accounts = await db.get_accounts(message.from_user.id)
     is_prem = user["is_premium"] if user else False
-
-    # Statistika (barcha akkauntlar bo'yicha)
     total_sent = total_today = total_groups = 0
     interval = 5
     for a in accounts:
         st = await db.get_stats(a["id"])
-        total_sent += st["sent"]
-        total_today += st["today"]
+        total_sent += st["sent"]; total_today += st["today"]
         total_groups += await db.count_groups(a["id"])
-        s = await db.get_autosend(a["id"])
-        interval = s["interval_min"]
-
+        s = await db.get_autosend(a["id"]); interval = s["interval_min"]
     first = accounts[0] if accounts else None
     name = first["account_name"] if first else (user["full_name"] if user else "—")
     phone = first["phone"] if first else "—"
     uname = f"@{first['account_username']}" if first and first["account_username"] else "—"
-
+    unit = "daqiqa" if lang == "uz" else "мин" if lang == "ru" else "min"
     text = (
-        f"{em.emoji('USER')} <b>Sizning Kabinetingiz</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"{em.emoji('USERS')} Ism: <b>{name}</b>\n"
-        f"📞 Raqam: <code>{phone}</code>\n"
+        f"{t('cab_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n"
+        f"{em.emoji('USERS')} {t('cab_name', lang)}: <b>{name}</b>\n"
+        f"📞 {t('cab_phone', lang)}: <code>{phone}</code>\n"
         f"@ Username: <b>{uname}</b>\n\n"
-        f"{em.emoji('STATS')} <b>Statistika:</b>\n"
-        f"{em.emoji('OK')} Bugun yuborildi: <b>{total_today}</b>\n"
-        f"🔄 Jami yuborilgan: <b>{total_sent}</b>\n"
-        f"📤 Guruhlar: <b>{total_groups}</b>\n"
-        f"{em.emoji('USERS')} Jami profillar: <b>{len(accounts)}</b>\n\n"
-        f"⭐ Tarif: <b>{'Premium' if is_prem else 'Free'}</b>\n"
-        f"{em.emoji('CROWN')} Premium: <b>{'Bor' if is_prem else 'Pro yo''q'}</b>\n"
-        f"{em.emoji('CLOCK')} Interval: <b>{interval} daqiqa</b>"
+        f"{em.emoji('STATS')} <b>{t('cab_stats', lang)}:</b>\n"
+        f"{em.emoji('OK')} {t('cab_today', lang)}: <b>{total_today}</b>\n"
+        f"🔄 {t('cab_total', lang)}: <b>{total_sent}</b>\n"
+        f"{em.emoji('GROUP')} {t('p_groups', lang)}: <b>{total_groups}</b>\n"
+        f"{em.emoji('USERS')} {t('cab_profiles', lang)}: <b>{len(accounts)}</b>\n\n"
+        f"⭐ {t('cab_tarif', lang)}: <b>{t('cab_pro_yes', lang) if is_prem else t('cab_free', lang)}</b>\n"
+        f"{em.emoji('CLOCK')} {t('p_interval', lang)}: <b>{interval} {unit}</b>"
     )
     await send_message(message.from_user.id, text,
-                       reply_markup=menus.cabinet_kb(first["id"] if first else 0))
+                       reply_markup=menus.cabinet_kb(first["id"] if first else 0, lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 8. SOZLAMALAR (Image 6 — reply keyboard)
+# 8. SOZLAMALAR (reply keyboard)
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Sozlamalar"))
+@router.message(lambda m: _is_btn(m.text, "btn_settings"))
 async def m_settings(message: Message, state: FSMContext):
     await state.clear()
-    text = (
-        f"{em.emoji('GEAR')} <b>Umumiy sozlamalar</b>\n\n"
-        f"Qaysi sozlamani o'zgartirmoqchisiz?\n\n"
-        f"<i>Bu yerdagi sozlamalar botning umumiy ishlash tartibiga ta'sir qiladi.</i>"
-    )
-    await send_message(message.from_user.id, text,
-                       reply_markup=menus.settings_reply())
+    lang = await get_lang(message.from_user.id)
+    text = f"{t('set_title', lang)}\n\n{t('set_q', lang)}\n\n{t('set_note', lang)}"
+    await send_message(message.from_user.id, text, reply_markup=reply.settings_reply(lang))
 
 
-# ─── Sozlamalar ichidagi reply tugmalar ─────────────────────────────
-@router.message(F.text.contains("Har bir habar oraligi"))
+@router.message(lambda m: _is_btn(m.text, "s_interval"))
 async def m_set_interval(message: Message, state: FSMContext):
     await m_interval(message, state)
 
 
-@router.message(F.text == "DM javob")
+@router.message(lambda m: _is_btn(m.text, "s_dm"))
 async def m_set_dm(message: Message, state: FSMContext):
-    await m_autoreply(message, state)
-
-
-@router.message(F.text.contains("Avtomatik obuna"))
-async def m_set_autosub(message: Message, state: FSMContext):
-    await send_message(
-        message.from_user.id,
-        f"{em.emoji('REFRESH')} <b>Avtomatik obuna</b>\n\n"
-        f"Akkaunt ulanganda kerakli kanallarga avtomatik obuna bo'lish.\n\n"
-        f"<i>Tez orada qo'shiladi.</i>",
-    )
-
-
-@router.message(F.text.contains("Orqaga"))
-async def m_back(message: Message, state: FSMContext):
+    # DM Javob menyusi (Image 9)
     await state.clear()
-    user = await db.get_user(message.from_user.id)
-    if not user:
-        user = await db.get_or_create_user(
-            message.from_user.id, message.from_user.username or "",
-            message.from_user.full_name or "")
-    from app.handlers.start import show_main_menu
-    await show_main_menu(message.from_user.id, user)
+    lang = await get_lang(message.from_user.id)
+    account = await _first_account(message.from_user.id)
+    if not account:
+        await send_message(message.from_user.id, t("no_account", lang))
+        return
+    r = await db.get_dm_reply(account["id"])
+    status = t("st_running", lang) if r["is_enabled"] else t("st_stopped", lang)
+    msg = t("msg_set", lang) if r["reply_text"] else t("msg_notset", lang)
+    # Avval menyu sarlavhasi
+    await send_message(message.from_user.id, f"{em.emoji('CHAT')} <b>{t('dm_menu_title', lang)}</b>")
+    # Keyin tafsilot + reply keyboard
+    text = f"{em.emoji('CHAT')} <b>{t('dm_title', lang)}</b>\n\n" + t("dm_desc", lang, status=status, msg=msg)
+    await send_message(message.from_user.id, text, reply_markup=reply.dm_reply_keyboard(lang))
+
+
+@router.message(lambda m: _is_btn(m.text, "s_autosub"))
+async def m_set_autosub(message: Message, state: FSMContext):
+    lang = await get_lang(message.from_user.id)
+    await send_message(message.from_user.id,
+        f"{em.emoji('REFRESH')} <b>{t('s_autosub', lang)}</b>\n\n{t('soon', lang)}")
 
 
 # ═══════════════════════════════════════════════════════════════════
 # 9. KALENDAR
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Kalendar"))
+@router.message(lambda m: _is_btn(m.text, "btn_calendar"))
 async def m_calendar(message: Message, state: FSMContext):
     await state.clear()
-    await send_message(
-        message.from_user.id,
-        f"{em.emoji('CALENDAR')} <b>Kalendar</b>\n\n"
-        f"Xabar yuborish jadvalini (kunlar/soatlar) sozlash.\n\n"
-        f"<i>Tez orada ishga tushadi.</i>",
-    )
+    lang = await get_lang(message.from_user.id)
+    await send_message(message.from_user.id,
+        f"{t('cal_title', lang)}\n\n{t('cal_soon', lang)}")
 
 
 # ═══════════════════════════════════════════════════════════════════
 # 10. FOYDALI FUNKSIYALAR
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Foydali funksiyalar"))
+@router.message(lambda m: _is_btn(m.text, "btn_tools"))
 async def m_tools(message: Message, state: FSMContext):
     await state.clear()
-    await send_message(
-        message.from_user.id,
-        f"{em.emoji('TOOLS')} <b>Foydali funksiyalar</b>\n\n"
-        f"Qo'shimcha vositalar.\n\n<i>Tez orada qo'shiladi.</i>",
-    )
+    lang = await get_lang(message.from_user.id)
+    await send_message(message.from_user.id,
+        f"{t('tools_title', lang)}\n\n{t('soon', lang)}")
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 11. STATISTIKA
+# 11. STATISTIKA (admin tavsif kirita oladi)
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Statistika"))
+@router.message(lambda m: _is_btn(m.text, "btn_stats"))
 async def m_stats(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     accounts = await db.get_accounts(message.from_user.id)
+    # Admin tomonidan kiritilgan tavsif
+    desc = await db.get_setting(f"stats_desc_{lang}", "") or await db.get_setting("stats_desc_uz", "")
+    text = f"{t('stat_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n"
+    if desc:
+        text += f"{desc}\n━━━━━━━━━━━━━━━━━━━━\n"
     if not accounts:
-        await send_message(message.from_user.id,
-                           f"{em.emoji('STATS')} <b>Statistika</b>\n\nHali ma'lumot yo'q.")
-        return
-    text = f"{em.emoji('STATS')} <b>Statistika</b>\n━━━━━━━━━━━━━━━━━━━━\n"
-    for a in accounts:
-        st = await db.get_stats(a["id"])
-        gc = await db.count_groups(a["id"])
-        name = a["account_name"] or a["phone"]
-        text += (
-            f"\n{em.emoji('USER')} <b>{name}</b>\n"
-            f"   {em.emoji('CHAT')} Guruhlar: <b>{gc}</b>\n"
-            f"   {em.emoji('OK')} Yuborilgan: <b>{st['sent']}</b>\n"
-            f"   📅 Bugun: <b>{st['today']}</b>\n"
-            f"   {em.emoji('CROSS')} Xato: <b>{st['failed']}</b>\n"
-        )
-    await send_message(message.from_user.id, text, reply_markup=menus.close_kb())
+        text += t("stat_empty", lang)
+    else:
+        for a in accounts:
+            st = await db.get_stats(a["id"])
+            gc = await db.count_groups(a["id"])
+            name = a["account_name"] or a["phone"]
+            text += (f"\n{em.emoji('USER')} <b>{name}</b>\n"
+                     f"   {em.emoji('GROUP')} {t('p_groups', lang)}: <b>{gc}</b>\n"
+                     f"   {em.emoji('OK')} {t('cab_total', lang)}: <b>{st['sent']}</b>\n"
+                     f"   📅 {t('cab_today', lang)}: <b>{st['today']}</b>\n")
+    await send_message(message.from_user.id, text, reply_markup=menus.close_kb(lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 12. YORDAM
+# 12. YORDAM (kanal/chat/admin + Murojat)
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Yordam"))
+@router.message(lambda m: _is_btn(m.text, "btn_help"))
 async def m_help(message: Message, state: FSMContext):
     await state.clear()
-    await send_message(
-        message.from_user.id,
-        f"{em.emoji('INFO')} <b>Yordam</b>\n\n"
-        f"{em.emoji('ROCKET')} <b>Bot nima qiladi?</b>\n"
-        f"Akkauntingiz nomidan guruhlarga avtomatik xabar yuboradi.\n\n"
-        f"<b>Qadamlar:</b>\n"
-        f"1. «👥 Profillar» → Akkaunt qo'shing\n"
-        f"2. «💬 Guruhlarni sozlash» → Guruhlarni tanlang\n"
-        f"3. «📝 Habar matni» → Xabarni yozing\n"
-        f"4. «⏰ Interval» → Vaqtni belgilang\n"
-        f"5. «🚀 Autohabar yuborish» → Ishga tushuring\n\n"
-        f"❓ @{config.admin_username}",
-        reply_markup=menus.close_kb(),
+    lang = await get_lang(message.from_user.id)
+    channel = await db.get_setting("help_channel", "@autoxabar_news")
+    chat = await db.get_setting("help_chat", "@autohabar_chat")
+    admin = await db.get_setting("help_admin", f"@{config.admin_username}")
+    text = (
+        f"{t('help_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n"
+        f"{em.emoji('CHAT')} {t('help_channel', lang)}: {channel}\n"
+        f"{em.emoji('GROUP')} {t('help_chat', lang)}: {chat}\n"
+        f"{em.emoji('USER')} {t('help_admin', lang)}: {admin}\n\n"
+        f"{t('help_contact', lang)}"
     )
+    await send_message(message.from_user.id, text, reply_markup=menus.help_kb(lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 13. QO'LLANMA
+# 13. QO'LLANMA (admin kiritadi)
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Qo'llanma"))
+@router.message(lambda m: _is_btn(m.text, "btn_guide"))
 async def m_guide(message: Message, state: FSMContext):
     await state.clear()
-    await send_message(
-        message.from_user.id,
-        f"{em.emoji('BOOK')} <b>Qo'llanma</b>\n\n"
-        f"{em.emoji('USER')} <b>Akkaunt qo'shish:</b>\n"
-        f"«Profillar» → «Akkaunt qo'shish» → QR yoki SMS\n\n"
-        f"{em.emoji('CHAT')} <b>Guruhlar:</b>\n"
-        f"Akkaunt ulangach avtomatik yuklanadi\n\n"
-        f"{em.emoji('EDIT')} <b>Xabar:</b>\n"
-        f"Har bir profil uchun alohida matn\n\n"
-        f"{em.emoji('CLOCK')} <b>Interval:</b> 2 daqiqadan 3 soatgacha\n\n"
-        f"<i>Batafsil: @{config.admin_username}</i>",
-        reply_markup=menus.close_kb(),
-    )
+    lang = await get_lang(message.from_user.id)
+    guide = await db.get_setting(f"guide_{lang}", "") or await db.get_setting("guide_uz", "")
+    text = f"{t('guide_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += guide if guide else t("guide_empty", lang)
+    await send_message(message.from_user.id, text, reply_markup=menus.close_kb(lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 14. AUTOREPLY
+# 14. AUTOREPLY (reply keyboard — Image 12)
 # ═══════════════════════════════════════════════════════════════════
-@router.message(F.text.contains("Autoreply"))
+@router.message(lambda m: _is_btn(m.text, "btn_autoreply"))
 async def m_autoreply(message: Message, state: FSMContext):
     await state.clear()
+    lang = await get_lang(message.from_user.id)
     account = await _first_account(message.from_user.id)
     if not account:
-        await send_message(message.from_user.id,
-                           f"{em.emoji('WARN')} Avval «👥 Profillar» dan akkaunt qo'shing.")
+        await send_message(message.from_user.id, t("no_account", lang))
         return
-    r = await db.get_autoreply(account["id"])
-    status = "🟢 Yoqilgan" if r["is_enabled"] else f"{em.emoji('RED')} O'chiq"
-    cur = r["reply_text"] or "(yo'q)"
-    text = (
-        f"{em.emoji('CHAT')} <b>Autoreply (DM avto-javob)</b>\n\n"
-        f"Holat: <b>{status}</b>\n\n"
-        f"Javob matni:\n<blockquote>{cur[:300]}</blockquote>\n\n"
-        f"Siz onlayn bo'lmaganda kelgan shaxsiy xabarlarga avtomatik javob beradi."
-    )
-    await send_message(message.from_user.id, text,
-                       reply_markup=menus.autoreply_kb(account["id"], r["is_enabled"]))
+    gr = await db.get_group_reply(account["id"])
+    import json
+    groups = json.loads(gr["groups_json"] or "[]")
+    status = t("st_running", lang) if gr["is_enabled"] else t("st_stopped", lang)
+    msg = t("msg_set", lang) if gr["reply_text"] else t("msg_notset", lang)
+    text = f"{em.emoji('CHAT')} <b>{t('ar_title', lang)}</b>\n\n" + t("ar_desc", lang, status=status, msg=msg, n=len(groups))
+    await send_message(message.from_user.id, text, reply_markup=reply.autoreply_keyboard(lang))
 
 
 # ═══════════════════════════════════════════════════════════════════
-# UMUMIY CALLBACK — yopish va asosiy menyu
+# HOME / ORQAGA / YOPISH
 # ═══════════════════════════════════════════════════════════════════
+@router.message(lambda m: _is_btn(m.text, "back") or _is_btn(m.text, "home"))
+async def m_home(message: Message, state: FSMContext):
+    await state.clear()
+    from app.handlers.start import show_main_menu
+    await show_main_menu(message.from_user.id)
+
+
 @router.callback_query(F.data == "close_msg")
 async def cb_close(call: CallbackQuery):
     try:
@@ -419,30 +383,12 @@ async def cb_close(call: CallbackQuery):
 @router.callback_query(F.data == "profiles_back")
 async def cb_profiles_back(call: CallbackQuery, state: FSMContext):
     await state.clear()
+    lang = await get_lang(call.from_user.id)
     from app.userbot import login
     await login.cancel_login(call.from_user.id)
     accounts = await db.get_accounts(call.from_user.id)
-    text = (
-        f"{em.emoji('USERS')} <b>Profillar</b>\n\n"
-        + (f"Ulangan: <b>{len(accounts)}</b> ta" if accounts else "Hali akkaunt yo'q.")
-    )
-    await edit_message(call.message.chat.id, call.message.message_id, text,
-                       reply_markup=menus.accounts_menu(accounts))
-    await answer_callback(call.id)
-
-
-@router.callback_query(F.data == "back_main")
-async def cb_back_main(call: CallbackQuery, state: FSMContext):
-    await state.clear()
-    try:
-        await delete_message(call.message.chat.id, call.message.message_id)
-    except Exception:
-        pass
-    user = await db.get_user(call.from_user.id)
-    if not user:
-        user = await db.get_or_create_user(
-            call.from_user.id, call.from_user.username or "",
-            call.from_user.full_name or "")
-    from app.handlers.start import show_main_menu
-    await show_main_menu(call.from_user.id, user)
+    body = t("prof_count", lang, n=len(accounts)) if accounts else t("prof_none", lang)
+    await edit_message(call.message.chat.id, call.message.message_id,
+                       f"{t('prof_title', lang)}\n\n{body}",
+                       reply_markup=menus.accounts_menu(accounts, lang))
     await answer_callback(call.id)

@@ -74,20 +74,32 @@ async def _send_account(account: dict):
         _busy.discard(account_id)
 
 
-async def restore_autoreplies():
-    """Bot qayta ishga tushganda yoqilgan autoreply'larni tiklaydi."""
+async def restore_replies():
+    """Bot qayta ishga tushganda yoqilgan DM va guruh reply'larni tiklaydi."""
+    import json
     async with db.pool().acquire() as con:
-        rows = await con.fetch("""
+        # DM reply
+        dm_rows = await con.fetch("""
             SELECT r.account_id, r.reply_text, a.session_string
-            FROM autoreplies r
-            JOIN accounts a ON a.id = r.account_id
-            WHERE r.is_enabled = TRUE AND a.is_active = TRUE
+            FROM dm_reply r JOIN accounts a ON a.id=r.account_id
+            WHERE r.is_enabled=TRUE AND a.is_active=TRUE
         """)
-    for r in rows:
+        # Group reply
+        gr_rows = await con.fetch("""
+            SELECT r.account_id, r.reply_text, r.groups_json, a.session_string
+            FROM group_reply r JOIN accounts a ON a.id=r.account_id
+            WHERE r.is_enabled=TRUE AND a.is_active=TRUE
+        """)
+    for r in dm_rows:
         try:
-            await manager.enable_autoreply(
-                r["account_id"], r["session_string"], r["reply_text"]
-            )
-            print(f"[scheduler] autoreply tiklandi: account#{r['account_id']}")
+            await manager.enable_dm_reply(r["account_id"], r["session_string"], r["reply_text"])
+            print(f"[scheduler] DM reply tiklandi: #{r['account_id']}")
         except Exception as e:
-            print(f"[scheduler] autoreply tiklanmadi #{r['account_id']}: {e}")
+            print(f"[scheduler] DM reply xato #{r['account_id']}: {e}")
+    for r in gr_rows:
+        try:
+            groups = json.loads(r["groups_json"] or "[]")
+            await manager.enable_group_reply(r["account_id"], r["session_string"], r["reply_text"], groups)
+            print(f"[scheduler] group reply tiklandi: #{r['account_id']}")
+        except Exception as e:
+            print(f"[scheduler] group reply xato #{r['account_id']}: {e}")

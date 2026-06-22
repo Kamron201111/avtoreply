@@ -1,44 +1,72 @@
 """
-Pastdagi tugmalar (ReplyKeyboard) — asosiy menyu.
-Raw API orqali yuboriladi, shuning uchun premium emoji (icon) + style ishlaydi.
+Pastdagi tugmalar (ReplyKeyboard) — 3 tilli, premium emoji + rang.
+Admin uchun oxirida «Admin panel» tugmasi qo'shiladi.
 """
 from app.keyboards.builder import reply_kb, rbtn
-from app import emoji as em
+from app.i18n import t, LANGS
+from app.config import config
 
 
-# ─── Tugma matnlari (handlerda solishtirish uchun) ──────────────────
-# Eslatma: F.text.contains() bilan ushlash uchun matnlarda kalit so'z bo'ladi
-BTN_AUTOSEND  = "Autohabar yuborish"
-BTN_MESSAGE   = "Habar matni"
-BTN_INTERVAL  = "Interval"
-BTN_GROUPS    = "Guruhlarni sozlash"
-BTN_PROFILES  = "Profillar"
-BTN_PRO       = "Pro tarif"
-BTN_CABINET   = "Kabinet"
-BTN_SETTINGS  = "Sozlamalar"
-BTN_CALENDAR  = "Kalendar"
-BTN_TOOLS     = "Foydali funksiyalar"
-BTN_STATS     = "Statistika"
-BTN_HELP      = "Yordam"
-BTN_GUIDE     = "Qo'llanma"
-BTN_AUTOREPLY = "Autoreply"
+def lang_kb() -> dict:
+    """Til tanlash (inline)."""
+    from app.keyboards.builder import btn, inline_kb
+    return inline_kb([
+        [btn("🇺🇿 O'zbekcha", cb="setlang_uz")],
+        [btn("🇷🇺 Русский", cb="setlang_ru")],
+        [btn("🇬🇧 English", cb="setlang_en")],
+    ])
 
 
-def main_menu() -> dict:
-    """Asosiy menyu (raw reply keyboard, premium emoji + rang)."""
+def main_menu(lang: str = "uz", is_admin: bool = False) -> dict:
+    """Asosiy menyu (til bo'yicha + admin tugmasi)."""
+    rows = [
+        [rbtn(t("btn_autosend", lang), icon="ROCKET", style="success"),
+         rbtn(t("btn_message", lang), icon="EDIT", style="success")],
+        [rbtn(t("btn_interval", lang), icon="CLOCK", style="primary"),
+         rbtn(t("btn_groups", lang), icon="GROUP", style="primary")],
+        [rbtn(t("btn_profiles", lang), icon="USERS", style="danger"),
+         rbtn(t("btn_pro", lang), icon="CROWN", style="danger")],
+        [rbtn(t("btn_cabinet", lang), icon="USER", style="primary"),
+         rbtn(t("btn_settings", lang), icon="GEAR", style="primary")],
+        [rbtn(t("btn_calendar", lang), icon="CALENDAR", style="primary"),
+         rbtn(t("btn_tools", lang), icon="TOOLS")],
+        [rbtn(t("btn_stats", lang), icon="STATS", style="success"),
+         rbtn(t("btn_help", lang), icon="INFO", style="success")],
+        [rbtn(t("btn_guide", lang), icon="BOOK", style="danger"),
+         rbtn(t("btn_autoreply", lang), icon="REPLY")],
+    ]
+    # Admin tugmasi — eng oxirida
+    if is_admin:
+        rows.append([rbtn(t("btn_admin", lang), icon="GEAR", style="danger")])
+    return reply_kb(rows, placeholder="Menu")
+
+
+# ─── Sozlamalar reply keyboard ──────────────────────────────────────
+def settings_reply(lang: str = "uz") -> dict:
     return reply_kb([
-        [rbtn(f"🚀 {BTN_AUTOSEND}", icon="ROCKET", style="success"),
-         rbtn(f"📝 {BTN_MESSAGE}", icon="EDIT", style="success")],
-        [rbtn(f"⏰ {BTN_INTERVAL}", icon="CLOCK", style="primary"),
-         rbtn(f"💬 {BTN_GROUPS}", icon="GROUP", style="primary")],
-        [rbtn(f"👥 {BTN_PROFILES}", icon="USERS", style="danger"),
-         rbtn(f"👑 {BTN_PRO}", icon="CROWN", style="danger")],
-        [rbtn(f"👤 {BTN_CABINET}", icon="USER", style="primary"),
-         rbtn(f"⚙️ {BTN_SETTINGS}", icon="GEAR", style="primary")],
-        [rbtn(f"📅 {BTN_CALENDAR}", icon="CALENDAR", style="primary"),
-         rbtn(f"🔧 {BTN_TOOLS}", icon="TOOLS")],
-        [rbtn(f"📊 {BTN_STATS}", icon="STATS", style="success"),
-         rbtn(f"🎧 {BTN_HELP}", icon="INFO", style="success")],
-        [rbtn(f"📕 {BTN_GUIDE}", icon="BOOK", style="danger"),
-         rbtn(f"🔄 {BTN_AUTOREPLY}", icon="REPLY")],
-    ], placeholder="Tugmani tanlang...")
+        [rbtn(t("s_interval", lang), icon="CLOCK", style="primary"),
+         rbtn(t("s_dm", lang), icon="CHAT", style="primary")],
+        [rbtn(t("s_autosub", lang), icon="REFRESH", style="primary")],
+        [rbtn(t("back", lang), icon="BACK", style="danger")],
+    ], placeholder="...")
+
+
+# ─── DM Javob reply keyboard (Image 9) ──────────────────────────────
+def dm_reply_keyboard(lang: str = "uz") -> dict:
+    return reply_kb([
+        [rbtn(t("dm_b_run", lang), icon="PLAY", style="success"),
+         rbtn(t("dm_b_setmsg", lang), icon="EDIT", style="primary")],
+        [rbtn(t("home", lang), icon="BACK", style="danger")],
+    ], placeholder="...")
+
+
+# ─── Autoreply reply keyboard (Image 12) ────────────────────────────
+def autoreply_keyboard(lang: str = "uz") -> dict:
+    return reply_kb([
+        [rbtn(t("ar_run", lang), icon="PLAY", style="danger"),
+         rbtn(t("ar_replymsg", lang), icon="EDIT", style="danger")],
+        [rbtn(t("ar_replygrp", lang), icon="USERS", style="danger"),
+         rbtn(t("ar_dontsend", lang), icon="CROSS", style="primary")],
+        [rbtn(t("ar_settings", lang)),
+         rbtn(t("home", lang), icon="BACK", style="danger")],
+    ], placeholder="...")
