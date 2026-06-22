@@ -16,7 +16,7 @@ from aiogram.enums import ParseMode
 from app.config import config
 from app.database import db
 from app.services import scheduler
-from app.handlers import start, accounts, manage, admin
+from app.handlers import start, menu, accounts, manage, admin
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,10 +44,11 @@ async def main():
     dp = Dispatcher()
 
     # Routerlar (tartib muhim — aniqroq filtrlar avval)
-    dp.include_router(start.router)
-    dp.include_router(accounts.router)
-    dp.include_router(manage.router)
-    dp.include_router(admin.router)
+    dp.include_router(start.router)      # /start, /admin, /menu
+    dp.include_router(menu.router)       # pastdagi tugmalar (14 ta bo'lim)
+    dp.include_router(accounts.router)   # akkaunt ulash (QR/SMS)
+    dp.include_router(manage.router)     # akkaunt boshqaruvi (inline)
+    dp.include_router(admin.router)      # admin panel
 
     # Avto-yuborish scheduler va autoreply tiklash
     asyncio.create_task(scheduler.scheduler_loop())
