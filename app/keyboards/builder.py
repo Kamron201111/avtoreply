@@ -1,49 +1,82 @@
 """
-Rangli inline tugmalar (aiogram 3.x).
+Tugma qurilishi — Bot API 9.4 (style + icon_custom_emoji_id) bilan.
 
-emoji  — emoji nomi (em.E_*) yoki oddiy emoji; tugma matni OLDIGA qo'shiladi
-style  — tugma rangi (Bot API 9.4): "primary", "success", "danger"
+Tugmalar dict ko'rinishida quriladi va raw API orqali yuboriladi,
+shunda style (rang) va icon (premium emoji) ishlaydi.
 
-ESLATMA: Inline tugmalarda premium emoji (icon_custom_emoji_id) ishlatilmaydi,
-chunki u DOCUMENT_INVALID berishi mumkin. Oddiy emoji matn oldiga qo'shiladi.
+style: "primary" (ko'k) | "success" (yashil) | "danger" (qizil) | "" (default)
+icon:  emoji.ICON kaliti (masalan "ROCKET") yoki to'g'ridan-to'g'ri ID
 """
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-from app import emoji as em
+from app.emoji import ICON
 
 
-def _resolve_emoji(emoji: str) -> str:
-    """Emoji nomini (masalan 'rocket') oddiy emojiga aylantiradi."""
-    if not emoji:
-        return ""
-    # Agar bu nom bo'lsa (PLAIN ichida) — oddiy emoji qaytar
-    if emoji in em.PLAIN:
-        return em.PLAIN[emoji]
-    # Aks holda o'zi emoji (masalan to'g'ridan-to'g'ri "🚀")
-    return emoji
-
-
-def btn(
-    text: str,
-    callback_data: str = "",
-    url: str = "",
-    emoji: str = "",
-    style: str = "",
-) -> InlineKeyboardButton:
-    """Bitta inline tugma yaratadi."""
-    icon = _resolve_emoji(emoji)
-    label = f"{icon} {text}".strip() if icon else text
-
-    kwargs: dict = {"text": label}
-    if callback_data:
-        kwargs["callback_data"] = callback_data
+def btn(text: str, *, cb: str = "", url: str = "", web_app: str = "",
+        icon: str = "", style: str = "", switch_inline: str = "") -> dict:
+    """Bitta inline tugma (dict)."""
+    b: dict = {"text": text}
+    if cb:
+        b["callback_data"] = cb
     if url:
-        kwargs["url"] = url
+        b["url"] = url
+    if web_app:
+        b["web_app"] = {"url": web_app}
+    if switch_inline != "":
+        b["switch_inline_query_current_chat"] = switch_inline
+    if icon:
+        b["icon_custom_emoji_id"] = ICON.get(icon, icon)
     if style:
-        kwargs["style"] = style   # Bot API 9.4 — rang (xavfsiz)
-    return InlineKeyboardButton(**kwargs)
+        b["style"] = style
+    return b
 
 
-def kb(rows: list[list[InlineKeyboardButton]]) -> InlineKeyboardMarkup:
-    """Tugma qatorlaridan klaviatura yasaydi."""
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+def inline_kb(rows: list[list[dict]]) -> dict:
+    """reply_markup uchun inline keyboard dict."""
+    return {"inline_keyboard": rows}
+
+
+def reply_kb(rows: list[list[dict]], *, resize: bool = True,
+             one_time: bool = False, persistent: bool = True,
+             placeholder: str = "") -> dict:
+    """Pastdan chiqadigan reply keyboard."""
+    kb: dict = {"keyboard": rows, "resize_keyboard": resize}
+    if one_time:
+        kb["one_time_keyboard"] = True
+    if persistent:
+        kb["is_persistent"] = True
+    if placeholder:
+        kb["input_field_placeholder"] = placeholder
+    return kb
+
+
+def rbtn(text: str, *, icon: str = "", style: str = "") -> dict:
+    """Reply keyboard tugmasi (matn yuboradi)."""
+    b: dict = {"text": text}
+    if icon:
+        b["icon_custom_emoji_id"] = ICON.get(icon, icon)
+    if style:
+        b["style"] = style
+    return b
+
+
+# ─── Eski aiogram-uslub funksiyalar bilan moslik (manage.py uchun) ──
+def kb(rows):
+    """Eski kod uchun — dict inline_kb qaytaradi."""
+    # Agar InlineKeyboardButton obyektlari kelsa ularni dict'ga aylantiramiz
+    new_rows = []
+    for row in rows:
+        new_row = []
+        for b in row:
+            if isinstance(b, dict):
+                new_row.append(b)
+            else:
+                # aiogram InlineKeyboardButton -> dict
+                d = {"text": b.text}
+                if b.callback_data:
+                    d["callback_data"] = b.callback_data
+                if getattr(b, "url", None):
+                    d["url"] = b.url
+                if getattr(b, "style", None):
+                    d["style"] = b.style
+                new_row.append(d)
+        new_rows.append(new_row)
+    return inline_kb(new_rows)

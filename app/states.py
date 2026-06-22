@@ -29,3 +29,11 @@ class AdminStates(StatesGroup):
     waiting_broadcast = State()
     waiting_user_id = State()
     waiting_premium_id = State()
+    waiting_prices = State()
+    waiting_card = State()
+
+
+class ProGift(StatesGroup):
+    """Pro sovg'a qilish holatlari."""
+    waiting_target = State()     # kimga sovg'a (username/ID)
+    waiting_payment = State()    # to'lov tasdiqlash

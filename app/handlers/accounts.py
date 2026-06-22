@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 from app.database import db
 from app.keyboards import menus
+from app.raw_api import to_aiogram_markup as _M
 from app.keyboards.builder import btn, kb
 from app.states import LinkAccount
 from app.userbot import login, manager
@@ -21,7 +22,7 @@ router = Router(name="accounts")
 # AKKAUNTLAR MENYUSI
 # ═══════════════════════════════════════════════════════════════════
 
-@router.callback_query(F.data == "accounts_menu")
+@router.callback_query(F.data == "__old_accounts_menu")
 async def cb_accounts_menu(call: CallbackQuery, state: FSMContext):
     await state.clear()
     await login.cancel_login(call.from_user.id)
@@ -32,7 +33,7 @@ async def cb_accounts_menu(call: CallbackQuery, state: FSMContext):
            if accounts else
            "Hali akkaunt ulanmagan.\n\n➕ <b>Akkaunt qo'shish</b> tugmasini bosing.")
     )
-    await call.message.edit_text(text, reply_markup=menus.accounts_menu(accounts))
+    await call.message.edit_text(text, reply_markup=_M(menus.accounts_menu(accounts)))
     await call.answer()
 
 
@@ -46,7 +47,7 @@ async def cb_add_account(call: CallbackQuery, state: FSMContext):
         f"📱 <b>SMS</b> — telefon raqamingizga kod keladi\n\n"
         f"⚠️ <i>Akkauntingiz xavfsiz saqlanadi va faqat siz boshqarasiz.</i>"
     )
-    await call.message.edit_text(text, reply_markup=menus.link_method())
+    await call.message.edit_text(text, reply_markup=_M(menus.link_method()))
     await call.answer()
 
 
@@ -64,7 +65,7 @@ async def cb_link_qr(call: CallbackQuery, state: FSMContext):
     except Exception as e:
         await call.message.edit_text(
             f"{em.eWN()} QR yaratishda xato:\n<code>{str(e)[:200]}</code>",
-            reply_markup=menus.cancel_link_kb(),
+            reply_markup=_M(menus.cancel_link_kb()),
         )
         return
 
@@ -88,7 +89,7 @@ async def cb_link_qr(call: CallbackQuery, state: FSMContext):
 
     photo = BufferedInputFile(img.read(), filename="qr.png")
     sent = await call.message.answer_photo(
-        photo=photo, caption=caption, reply_markup=menus.qr_waiting_kb(),
+        photo=photo, caption=caption, reply_markup=_M(menus.qr_waiting_kb()),
     )
 
     # QR natijasini fonda kutamiz
@@ -114,13 +115,13 @@ async def _watch_qr(call: CallbackQuery, state: FSMContext, qr, msg_id: int, own
                     f"Akkauntingizda ikki bosqichli himoya yoqilgan.\n"
                     f"Parolingizni yuboring:"
                 ),
-                reply_markup=menus.cancel_link_kb(),
+                reply_markup=_M(menus.cancel_link_kb()),
             )
         except Exception:
             await bot.send_message(
                 chat_id,
                 f"🔑 <b>2FA parol kerak.</b> Parolingizni yuboring:",
-                reply_markup=menus.cancel_link_kb(),
+                reply_markup=_M(menus.cancel_link_kb()),
             )
 
     elif result["status"] == "timeout":
@@ -128,7 +129,7 @@ async def _watch_qr(call: CallbackQuery, state: FSMContext, qr, msg_id: int, own
             await bot.edit_message_caption(
                 chat_id=chat_id, message_id=msg_id,
                 caption=f"{em.eCL()} QR kod muddati tugadi.\n«🔄 Yangilash» bosing.",
-                reply_markup=menus.qr_waiting_kb(),
+                reply_markup=_M(menus.qr_waiting_kb()),
             )
         except Exception:
             pass
@@ -138,7 +139,7 @@ async def _watch_qr(call: CallbackQuery, state: FSMContext, qr, msg_id: int, own
             await bot.edit_message_caption(
                 chat_id=chat_id, message_id=msg_id,
                 caption=f"{em.eWN()} Xato:\n<code>{result.get('message', '')}</code>",
-                reply_markup=menus.cancel_link_kb(),
+                reply_markup=_M(menus.cancel_link_kb()),
             )
         except Exception:
             pass
@@ -162,7 +163,7 @@ async def cb_link_sms(call: CallbackQuery, state: FSMContext):
         await call.message.delete()
     except Exception:
         pass
-    await call.message.answer(text, reply_markup=menus.cancel_link_kb())
+    await call.message.answer(text, reply_markup=_M(menus.cancel_link_kb()))
     await call.answer()
 
 
@@ -172,7 +173,7 @@ async def on_phone(message: Message, state: FSMContext):
     if not phone.startswith("+") or not phone[1:].isdigit() or len(phone) < 10:
         await message.answer(
             f"{em.eWN()} Raqam noto'g'ri.\nFormat: <code>+998901234567</code>",
-            reply_markup=menus.cancel_link_kb(),
+            reply_markup=_M(menus.cancel_link_kb()),
         )
         return
 
@@ -187,12 +188,12 @@ async def on_phone(message: Message, state: FSMContext):
             f"📨 <b>{phone}</b> raqamiga kelgan kodni kiriting.\n\n"
             f"⚠️ <i>Kodni <b>bo'sh joy bilan</b> yozing yoki orasiga belgi qo'ying, "
             f"masalan «1 2 3 4 5» — Telegram avtomatik o'chirib yuborilishidan saqlaydi.</i>",
-            reply_markup=menus.cancel_link_kb(),
+            reply_markup=_M(menus.cancel_link_kb()),
         )
     else:
         await wait.edit_text(
             f"{em.eWN()} {result.get('message', 'Xato')}",
-            reply_markup=menus.cancel_link_kb(),
+            reply_markup=_M(menus.cancel_link_kb()),
         )
 
 
@@ -241,12 +242,12 @@ async def _handle_login_result(message: Message, state: FSMContext, wait: Messag
         await state.set_state(LinkAccount.waiting_password)
         await wait.edit_text(
             f"🔑 <b>2FA parol kerak.</b>\n\nParolingizni yuboring:",
-            reply_markup=menus.cancel_link_kb(),
+            reply_markup=_M(menus.cancel_link_kb()),
         )
     else:
         await wait.edit_text(
             f"{em.eWN()} {result.get('message', 'Xato')}",
-            reply_markup=menus.cancel_link_kb(),
+            reply_markup=_M(menus.cancel_link_kb()),
         )
 
 
@@ -293,10 +294,11 @@ async def _save_account(bot, chat_id: int, msg_id: int, state: FSMContext,
         f"{em.eGR()} Topilgan guruhlar: <b>{added}</b> ta\n\n"
         f"Endi <b>Habar matni</b>ni yozing va <b>Ishga tushuring</b>!"
     )
-    final_kb = kb([
-        [btn("Bu akkauntni sozlash", f"account_{row['id']}", emoji=em.E_GEAR, style="primary")],
-        [btn("Bosh menyu", "back_main", emoji=em.E_BACK)],
-    ])
+    from app.keyboards.builder import btn as _btn, inline_kb as _ikb
+    final_kb = _M(_ikb([
+        [_btn("Bu akkauntni sozlash", cb=f"account_{row['id']}", icon="GEAR", style="primary")],
+        [_btn("Yopish", cb="close_msg", icon="BACK", style="danger")],
+    ]))
     try:
         await bot.edit_message_caption(
             chat_id=chat_id, message_id=msg_id, caption=final_text, reply_markup=final_kb,
