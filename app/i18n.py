@@ -457,3 +457,34 @@ TEXTS.update({
                        "en": "🔐 <b>2FA password needed</b>\n\nTwo-factor auth is enabled.\nSend your password:"},
     "error_generic": {"uz": "{e_WARN} Xato:", "ru": "{e_WARN} Ошибка:", "en": "{e_WARN} Error:"},
 })
+
+
+# ═══ Interval sekund matnlari ═══
+TEXTS.update({
+    "sec_set": {"uz": "✅ Interval {n} soniya o'rnatildi!", "ru": "✅ Интервал {n} сек!", "en": "✅ Interval set to {n} sec!"},
+    "sec_range": {"uz": "{e_WARN} Soniya 1 — 3600 oralig'ida bo'lsin.", "ru": "{e_WARN} Секунды 1 — 3600.", "en": "{e_WARN} Seconds 1 — 3600."},
+    "sec_pro_only": {"uz": "🔒 Soniyalik interval faqat Pro tarifda! (juda tez yuborish)", "ru": "🔒 Интервал в секундах только в Pro!", "en": "🔒 Seconds interval is Pro only!"},
+    "int_manual_q2": {
+        "uz": ("{e_EDIT} <b>Qo'lda interval kiritish</b>\n\n"
+               "• Daqiqa uchun son: <code>25</code> (25 daqiqa)\n"
+               "• Soniya uchun nuqta bilan: <code>.5</code> (5 soniya), <code>.30</code> (30 soniya)\n\n"
+               "<i>Soniyalik interval faqat Pro tarifda.</i>"),
+        "ru": ("{e_EDIT} <b>Ручной ввод интервала</b>\n\n"
+               "• Минуты: <code>25</code> (25 минут)\n"
+               "• Секунды с точкой: <code>.5</code> (5 сек), <code>.30</code> (30 сек)\n\n"
+               "<i>Секунды только в Pro.</i>"),
+        "en": ("{e_EDIT} <b>Manual interval</b>\n\n"
+               "• Minutes: <code>25</code> (25 min)\n"
+               "• Seconds with dot: <code>.5</code> (5 sec), <code>.30</code> (30 sec)\n\n"
+               "<i>Seconds interval is Pro only.</i>"),
+    },
+})
+
+
+def fmt_interval(interval_min: int, interval_sec: int, lang: str = "uz") -> str:
+    """Intervalni chiroyli ko'rsatadi (sekund yoki daqiqa)."""
+    if interval_sec and interval_sec > 0:
+        unit = "soniya" if lang == "uz" else "сек" if lang == "ru" else "sec"
+        return f"{interval_sec} {unit}"
+    unit = "daqiqa" if lang == "uz" else "мин" if lang == "ru" else "min"
+    return f"{interval_min} {unit}"

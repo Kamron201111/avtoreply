@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from app.database import db
 from app.keyboards import reply, menus
 from app.raw_api import send_message, edit_message, answer_callback, delete_message
-from app.i18n import t, TEXTS
+from app.i18n import t, TEXTS, fmt_interval
 from app.lang_util import get_lang
 from app import emoji as em
 from app.config import config
@@ -38,7 +38,7 @@ async def account_panel_text(account, lang="uz") -> str:
         f"{em.emoji('RED')} {t('p_status', lang)}: <b>{status}</b>\n"
         f"{em.emoji('USER')} {t('p_msgtype', lang)}: <b>{t(mtype_key, lang)}</b>\n"
         f"{em.emoji('GROUP')} {t('p_groups', lang)}: <b>{gc}</b>\n"
-        f"{em.emoji('CLOCK')} {t('p_interval', lang)}: <b>{s['interval_min']} {('daqiqa' if lang=='uz' else 'мин' if lang=='ru' else 'min')}</b>\n"
+        f"{em.emoji('CLOCK')} {t('p_interval', lang)}: <b>{fmt_interval(s['interval_min'], s['interval_sec'], lang)}</b>\n"
         f"{em.emoji('TIMER')} {t('p_autodel', lang)}: <b>{auto_del}</b>\n"
         f"{em.emoji('MENTION')} {t('p_mention', lang)}: <b>{mention}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━"
@@ -187,16 +187,16 @@ async def m_cabinet(message: Message, state: FSMContext):
     is_prem = user["is_premium"] if user else False
     total_sent = total_today = total_groups = 0
     interval = 5
+    interval_sec = 0
     for a in accounts:
         st = await db.get_stats(a["id"])
         total_sent += st["sent"]; total_today += st["today"]
         total_groups += await db.count_groups(a["id"])
-        s = await db.get_autosend(a["id"]); interval = s["interval_min"]
+        s = await db.get_autosend(a["id"]); interval = s["interval_min"]; interval_sec = s["interval_sec"]
     first = accounts[0] if accounts else None
     name = first["account_name"] if first else (user["full_name"] if user else "—")
     phone = first["phone"] if first else "—"
     uname = f"@{first['account_username']}" if first and first["account_username"] else "—"
-    unit = "daqiqa" if lang == "uz" else "мин" if lang == "ru" else "min"
     text = (
         f"{t('cab_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n"
         f"{em.emoji('USERS')} {t('cab_name', lang)}: <b>{name}</b>\n"
@@ -208,7 +208,7 @@ async def m_cabinet(message: Message, state: FSMContext):
         f"{em.emoji('GROUP')} {t('p_groups', lang)}: <b>{total_groups}</b>\n"
         f"{em.emoji('USERS')} {t('cab_profiles', lang)}: <b>{len(accounts)}</b>\n\n"
         f"⭐ {t('cab_tarif', lang)}: <b>{t('cab_pro_yes', lang) if is_prem else t('cab_free', lang)}</b>\n"
-        f"{em.emoji('CLOCK')} {t('p_interval', lang)}: <b>{interval} {unit}</b>"
+        f"{em.emoji('CLOCK')} {t('p_interval', lang)}: <b>{fmt_interval(interval, interval_sec, lang)}</b>"
     )
     await send_message(message.from_user.id, text,
                        reply_markup=menus.cabinet_kb(first["id"] if first else 0, lang))

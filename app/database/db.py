@@ -82,6 +82,7 @@ async def _create_tables() -> None:
                 message_text TEXT NOT NULL DEFAULT '',
                 message_file_id TEXT NOT NULL DEFAULT '',
                 interval_min INTEGER NOT NULL DEFAULT 5,
+                interval_sec INTEGER NOT NULL DEFAULT 0,
                 is_running BOOLEAN NOT NULL DEFAULT FALSE,
                 last_sent_at TIMESTAMPTZ,
                 next_send_at TIMESTAMPTZ,
@@ -156,6 +157,7 @@ async def _migrate(con) -> None:
     migrations = [
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS lang TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE autosend ADD COLUMN IF NOT EXISTS cycles INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE autosend ADD COLUMN IF NOT EXISTS interval_sec INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE autosend ADD COLUMN IF NOT EXISTS mention_enabled BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE autosend ADD COLUMN IF NOT EXISTS auto_delete_sec INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_username TEXT NOT NULL DEFAULT ''",
@@ -287,7 +289,7 @@ async def get_active_accounts():
     async with pool().acquire() as con:
         return await con.fetch("""
             SELECT a.*, s.interval_min, s.message_type, s.message_text, s.message_file_id,
-                   s.is_running, s.next_send_at, s.mention_enabled, s.auto_delete_sec, s.cycles
+                   s.is_running, s.next_send_at, s.mention_enabled, s.auto_delete_sec, s.cycles, s.interval_sec
             FROM accounts a JOIN autosend s ON s.account_id=a.id
             WHERE a.is_active=TRUE AND s.is_running=TRUE
         """)

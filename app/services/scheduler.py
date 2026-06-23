@@ -16,6 +16,15 @@ from app.userbot import manager
 _busy: set[int] = set()
 
 
+
+def _next_delta(account):
+    """interval_sec > 0 bo'lsa sekund, aks holda daqiqa."""
+    sec = account.get("interval_sec", 0) or 0
+    if sec > 0:
+        return timedelta(seconds=sec)
+    return timedelta(minutes=account.get("interval_min", 5) or 5)
+
+
 async def scheduler_loop():
     """Asosiy scheduler tsikli."""
     print("[scheduler] ishga tushdi")
@@ -42,7 +51,7 @@ async def _tick():
         next_send = account["next_send_at"]
         if next_send is None:
             # Birinchi marta — darhol yuborish vaqtini belgilaymiz
-            nxt = now + timedelta(minutes=account["interval_min"])
+            nxt = now + _next_delta(account)
             await db.set_running(account_id, True, nxt)
             continue
 
@@ -61,8 +70,7 @@ async def _send_account(account: dict):
               f"sent={result.get('sent',0)} failed={result.get('failed',0)}")
 
         # Keyingi yuborish vaqti
-        interval = account.get("interval_min", 5)
-        next_send = datetime.now(timezone.utc) + timedelta(minutes=interval)
+        next_send = datetime.now(timezone.utc) + _next_delta(account)
 
         # Hali ham ishlamoqdami tekshiramiz (foydalanuvchi to'xtatgan bo'lishi mumkin)
         fresh = await db.get_autosend(account_id)

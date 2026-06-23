@@ -70,7 +70,11 @@ async def cb_start(call: CallbackQuery):
     if not await db.get_enabled_groups(account_id):
         await answer_callback(call.id, t("need_groups", lang), show_alert=True)
         return
-    nxt = datetime.now(timezone.utc) + timedelta(minutes=s["interval_min"])
+    # interval_sec > 0 bo'lsa sekund, aks holda daqiqa
+    if s["interval_sec"] and s["interval_sec"] > 0:
+        nxt = datetime.now(timezone.utc) + timedelta(seconds=s["interval_sec"])
+    else:
+        nxt = datetime.now(timezone.utc) + timedelta(minutes=s["interval_min"])
     await db.set_running(account_id, True, nxt)
     await answer_callback(call.id, t("started", lang), show_alert=True)
     account = await db.get_account(account_id)
@@ -268,7 +272,7 @@ async def cb_int_manual(call: CallbackQuery, state: FSMContext):
     await state.set_state(MessageSetup.waiting_interval)
     await state.update_data(account_id=account_id)
     await edit_message(call.message.chat.id, call.message.message_id,
-                       t("int_manual_q", lang), reply_markup=menus.inline_back(f"intback_{account_id}", lang))
+                       t("int_manual_q2", lang), reply_markup=menus.inline_back(f"intback_{account_id}", lang))
     await answer_callback(call.id)
 
 
@@ -277,7 +281,34 @@ async def on_int_manual(message: Message, state: FSMContext):
     lang = await get_lang(message.from_user.id)
     data = await state.get_data()
     account_id = data["account_id"]
-    digits = "".join(c for c in message.text if c.isdigit())
+    raw = (message.text or "").strip()
+    user = await db.get_user(message.from_user.id)
+
+    # ── "." (nuqta) bilan boshlanса — SEKUND ──
+    # .5 = 5 sekund, .1 = 1 sekund, .30 = 30 sekund
+    if raw.startswith(".") or raw.startswith(","):
+        sec_digits = "".join(c for c in raw if c.isdigit())
+        if not sec_digits:
+            await message.answer(t("only_number", lang))
+            return
+        seconds = int(sec_digits)
+        if seconds < 1 or seconds > 3600:
+            await message.answer(t("sec_range", lang))
+            return
+        # Faqat Premium sekundlik (juda tez) intervalga ruxsat
+        if not user["is_premium"]:
+            await message.answer(t("sec_pro_only", lang))
+            return
+        # interval_sec saqlaymiz (interval_min=0 — sekund ustun)
+        await db.update_autosend(account_id, interval_sec=seconds, interval_min=0)
+        await state.clear()
+        s = await db.get_autosend(account_id)
+        await send_message(message.from_user.id, t("sec_set", lang, n=seconds),
+                           reply_markup=menus.account_panel(account_id, s["is_running"], s["mention_enabled"], lang))
+        return
+
+    # ── Oddiy son — DAQIQA ──
+    digits = "".join(c for c in raw if c.isdigit())
     if not digits:
         await message.answer(t("only_number", lang))
         return
@@ -285,11 +316,11 @@ async def on_int_manual(message: Message, state: FSMContext):
     if minutes < 1 or minutes > 1440:
         await message.answer(t("only_number", lang))
         return
-    user = await db.get_user(message.from_user.id)
     if not user["is_premium"] and minutes < config.free_min_interval:
         await message.answer(t("int_free_limit", lang, n=config.free_min_interval))
         return
-    await db.update_autosend(account_id, interval_min=minutes)
+    # daqiqa rejimi — interval_sec=0
+    await db.update_autosend(account_id, interval_min=minutes, interval_sec=0)
     await state.clear()
     s = await db.get_autosend(account_id)
     await send_message(message.from_user.id, t("int_set", lang, n=minutes),
