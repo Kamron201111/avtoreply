@@ -22,9 +22,8 @@ router = Router(name="manage")
 
 
 def _is_btn(text, key):
-    if not text:
-        return False
-    return any(text == v for v in TEXTS.get(key, {}).values())
+    from app.i18n import is_button
+    return is_button(text, key)
 
 
 async def _panel_text(account, lang):

@@ -16,13 +16,10 @@ from app.config import config
 router = Router(name="menu")
 
 
-# ─── Tugma matnini har 3 tilda solishtirish ────────────────────────
+# ─── Tugma matnini har 3 tilda solishtirish (emoji bo'lsin/bo'lmasin) ──
 def _is_btn(text: str, key: str) -> bool:
-    """Berilgan matn shu key ning biror tildagi varianti bilan boshlanadimi."""
-    if not text:
-        return False
-    variants = TEXTS.get(key, {})
-    return any(text == v for v in variants.values())
+    from app.i18n import is_button
+    return is_button(text, key)
 
 
 async def account_panel_text(account, lang="uz") -> str:

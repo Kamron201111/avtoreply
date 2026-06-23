@@ -6,6 +6,18 @@ from app.keyboards.builder import reply_kb, rbtn
 from app.i18n import t, LANGS
 from app.config import config
 
+def _strip_emoji(text: str) -> str:
+    """Matn boshidagi emoji va bo'shliqni olib tashlaydi (premium icon qoladi)."""
+    # Birinchi bo'shliqdan keyingi qismni olamiz (emoji odatda birinchi "so'z")
+    parts = text.split(" ", 1)
+    if len(parts) == 2:
+        first = parts[0]
+        # Agar birinchi qism harf/raqam bo'lmasa (ya'ni emoji), olib tashlaymiz
+        if first and not any(c.isalnum() for c in first):
+            return parts[1]
+    return text
+
+
 
 def lang_kb() -> dict:
     """Til tanlash (inline)."""
@@ -20,22 +32,22 @@ def lang_kb() -> dict:
 def main_menu(lang: str = "uz", is_admin: bool = False) -> dict:
     """Asosiy menyu (til bo'yicha + admin tugmasi)."""
     rows = [
-        [rbtn(t("btn_autosend", lang), icon="ROCKET", style="success"),
-         rbtn(t("btn_message", lang), icon="EDIT", style="success")],
-        [rbtn(t("btn_interval", lang), icon="CLOCK", style="primary"),
-         rbtn(t("btn_groups", lang), icon="GROUP", style="primary")],
-        [rbtn(t("btn_profiles", lang), icon="USERS", style="danger"),
-         rbtn(t("btn_pro", lang), icon="CROWN", style="danger")],
-        [rbtn(t("btn_cabinet", lang), icon="USER", style="primary"),
-         rbtn(t("btn_settings", lang), icon="GEAR", style="primary")],
-        [rbtn(t("btn_stats", lang), icon="STATS", style="success"),
-         rbtn(t("btn_help", lang), icon="INFO", style="success")],
-        [rbtn(t("btn_guide", lang), icon="BOOK", style="danger"),
-         rbtn(t("btn_autoreply", lang), icon="REPLY")],
+        [rbtn(_strip_emoji(t("btn_autosend", lang)), icon="ROCKET", style="success"),
+         rbtn(_strip_emoji(t("btn_message", lang)), icon="EDIT", style="success")],
+        [rbtn(_strip_emoji(t("btn_interval", lang)), icon="CLOCK", style="primary"),
+         rbtn(_strip_emoji(t("btn_groups", lang)), icon="GROUP", style="primary")],
+        [rbtn(_strip_emoji(t("btn_profiles", lang)), icon="USERS", style="danger"),
+         rbtn(_strip_emoji(t("btn_pro", lang)), icon="CROWN", style="danger")],
+        [rbtn(_strip_emoji(t("btn_cabinet", lang)), icon="USER", style="primary"),
+         rbtn(_strip_emoji(t("btn_settings", lang)), icon="GEAR", style="primary")],
+        [rbtn(_strip_emoji(t("btn_stats", lang)), icon="STATS", style="success"),
+         rbtn(_strip_emoji(t("btn_help", lang)), icon="INFO", style="success")],
+        [rbtn(_strip_emoji(t("btn_guide", lang)), icon="BOOK", style="danger"),
+         rbtn(_strip_emoji(t("btn_autoreply", lang)), icon="REPLY")],
     ]
     # Admin tugmasi — eng oxirida
     if is_admin:
-        rows.append([rbtn(t("btn_admin", lang), icon="GEAR", style="danger")])
+        rows.append([rbtn(_strip_emoji(t("btn_admin", lang)), icon="GEAR", style="danger")])
     return reply_kb(rows, placeholder="Menu")
 
 
@@ -68,3 +80,23 @@ def autoreply_keyboard(lang: str = "uz") -> dict:
         [rbtn(t("ar_settings", lang)),
          rbtn(t("home", lang), icon="BACK", style="danger")],
     ], placeholder="...")
+
+
+# ─── ADMIN PANEL reply keyboard ─────────────────────────────────────
+def admin_menu(lang: str = "uz") -> dict:
+    """Admin panel — pastdagi tugmalar (reply keyboard)."""
+    return reply_kb([
+        [rbtn(_strip_emoji(t("adm_b_stats", lang)), icon="STATS", style="primary"),
+         rbtn(_strip_emoji(t("adm_b_users", lang)), icon="USERS", style="primary")],
+        [rbtn(_strip_emoji(t("adm_b_give", lang)), icon="CROWN", style="success"),
+         rbtn(_strip_emoji(t("adm_b_take", lang)), icon="WARN", style="danger")],
+        [rbtn(_strip_emoji(t("adm_b_prices", lang)), icon="MONEY", style="primary"),
+         rbtn(_strip_emoji(t("adm_b_card", lang)), icon="CARD", style="primary")],
+        [rbtn(_strip_emoji(t("adm_b_guide", lang)), icon="BOOK", style="success"),
+         rbtn(_strip_emoji(t("adm_b_statsdesc", lang)), icon="STATS", style="success")],
+        [rbtn(_strip_emoji(t("adm_b_help", lang)), icon="INFO", style="primary"),
+         rbtn(_strip_emoji(t("adm_b_channels", lang)), icon="CHAT", style="primary")],
+        [rbtn(_strip_emoji(t("adm_b_tickets", lang)), icon="REPLY", style="success"),
+         rbtn(_strip_emoji(t("adm_b_broadcast", lang)), icon="ROCKET", style="success")],
+        [rbtn(_strip_emoji(t("adm_b_exit", lang)), icon="BACK", style="danger")],
+    ], placeholder="Admin")

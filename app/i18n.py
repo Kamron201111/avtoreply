@@ -396,3 +396,64 @@ def t(key: str, lang: str = "uz", **kwargs) -> str:
         except (KeyError, IndexError):
             pass
     return text
+
+
+def _strip_lead_emoji(text: str) -> str:
+    """Matn boshidagi emoji prefiksini olib tashlaydi."""
+    if not text:
+        return text
+    parts = text.split(" ", 1)
+    if len(parts) == 2 and parts[0] and not any(c.isalnum() for c in parts[0]):
+        return parts[1]
+    return text
+
+
+def is_button(text: str, key: str) -> bool:
+    """
+    Berilgan matn shu key ning biror tildagi varianti bilan mos keladimi?
+    Emoji bo'lsin yoki bo'lmasin (ikkala holatда ham) tekshiradi.
+    """
+    if not text:
+        return False
+    variants = TEXTS.get(key, {})
+    text_clean = _strip_lead_emoji(text).strip()
+    for v in variants.values():
+        if text == v:
+            return True
+        if text_clean == _strip_lead_emoji(v).strip():
+            return True
+    return False
+
+
+# ═══ ADMIN PANEL reply tugmalari ═══
+TEXTS.update({
+    "adm_b_stats":    {"uz": "📊 Bot statistikasi", "ru": "📊 Статистика бота", "en": "📊 Bot stats"},
+    "adm_b_users":    {"uz": "👥 Foydalanuvchilar", "ru": "👥 Пользователи", "en": "👥 Users"},
+    "adm_b_give":     {"uz": "👑 Premium berish", "ru": "👑 Выдать Premium", "en": "👑 Give Premium"},
+    "adm_b_take":     {"uz": "🚫 Premium olish", "ru": "🚫 Забрать Premium", "en": "🚫 Take Premium"},
+    "adm_b_prices":   {"uz": "💰 Pro narxlari", "ru": "💰 Цены Pro", "en": "💰 Pro prices"},
+    "adm_b_card":     {"uz": "💳 Karta raqami", "ru": "💳 Номер карты", "en": "💳 Card number"},
+    "adm_b_guide":    {"uz": "📕 Qo'llanma matni", "ru": "📕 Текст руководства", "en": "📕 Guide text"},
+    "adm_b_statsdesc":{"uz": "📈 Statistika tavsifi", "ru": "📈 Описание статистики", "en": "📈 Stats description"},
+    "adm_b_help":     {"uz": "🎧 Yordam sozlash", "ru": "🎧 Настройка помощи", "en": "🎧 Help setup"},
+    "adm_b_channels": {"uz": "📢 Majburiy obuna", "ru": "📢 Обяз. подписка", "en": "📢 Forced subs"},
+    "adm_b_tickets":  {"uz": "📨 Murojatlar", "ru": "📨 Обращения", "en": "📨 Tickets"},
+    "adm_b_broadcast":{"uz": "📣 Broadcast", "ru": "📣 Рассылка", "en": "📣 Broadcast"},
+    "adm_b_exit":     {"uz": "🔙 Asosiy menyu", "ru": "🔙 Главное меню", "en": "🔙 Main menu"},
+    "adm_panel_hint": {
+        "uz": "Quyidagi tugmalardan kerakli bo'limni tanlang:",
+        "ru": "Выберите нужный раздел:",
+        "en": "Choose a section below:",
+    },
+})
+
+
+# ═══ Akkaunt ulash qo'shimcha matnlar ═══
+TEXTS.update({
+    "accounts_title": {"uz": "{e_USERS} Akkauntlar", "ru": "{e_USERS} Аккаунты", "en": "{e_USERS} Accounts"},
+    "qr_error": {"uz": "{e_WARN} QR yaratishda xato:", "ru": "{e_WARN} Ошибка QR:", "en": "{e_WARN} QR error:"},
+    "need_2fa_title": {"uz": "🔐 <b>2FA parol kerak</b>\n\nAkkauntда ikki bosqichli himoya yoqilgan.\nParolingizni yuboring:",
+                       "ru": "🔐 <b>Нужен 2FA пароль</b>\n\nВключена двухфакторная защита.\nОтправьте пароль:",
+                       "en": "🔐 <b>2FA password needed</b>\n\nTwo-factor auth is enabled.\nSend your password:"},
+    "error_generic": {"uz": "{e_WARN} Xato:", "ru": "{e_WARN} Ошибка:", "en": "{e_WARN} Error:"},
+})
